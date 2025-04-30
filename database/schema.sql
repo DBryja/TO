@@ -10,29 +10,27 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Tabela portfeli
 CREATE TABLE IF NOT EXISTS wallets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL,
-    currency TEXT NOT NULL,
-    FOREIGN KEY(user_id) REFERENCES users(id)
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 -- Tabela nominałów
-CREATE TABLE IF NOT EXISTS nominals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS nominaly (
+    id SERIAL PRIMARY KEY,
     wallet_id INTEGER NOT NULL,
-    value INTEGER NOT NULL,
-    type TEXT NOT NULL,
-    count INTEGER DEFAULT 0,
-    FOREIGN KEY(wallet_id) REFERENCES wallets(id)
+    nominal INTEGER NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    count INTEGER NOT NULL,
+    FOREIGN KEY (wallet_id) REFERENCES wallets(id)
 );
 
--- Tabela historii transakcji
+-- Tabela transakcji
 CREATE TABLE IF NOT EXISTS transactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     wallet_id INTEGER NOT NULL,
-    type TEXT NOT NULL,
-    amount INTEGER NOT NULL,
-    currency TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(wallet_id) REFERENCES wallets(id)
+    type VARCHAR(10) NOT NULL,
+    amount NUMERIC(10,2) NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (wallet_id) REFERENCES wallets(id)
 );

@@ -1,0 +1,96 @@
+# Wzorce projektowe w systemie Smart Wallet
+
+Analizując kod Twojego projektu Smart Wallet Exchange System, można zidentyfikować kilka kluczowych wzorców projektowych:
+
+## 1. Strategy Pattern (Wzorzec Strategii)
+
+Jest to najbardziej widoczny i świadomie zastosowany wzorzec w Twoim projekcie:
+
+- Interfejs `ExchangeStrategy` definiuje wspólny kontrakt dla wszystkich strategii wymiany
+- Konkretne klasy strategii (`FewestBillsStrategy`, `MostCoinsStrategy`, `PreserveLargeDenominationsStrategy`) implementują ten interfejs
+- Klasa `Exchanger` przyjmuje strategię jako zależność i używa jej do przeprowadzania wymiany
+- Strategie można wymieniać w czasie wykonania poprzez metodę `setStrategy()`
+
+Ten wzorzec pozwala na elastyczne dodawanie nowych algorytmów wymiany bez modyfikacji istniejącego kodu.
+
+## 2. MVC (Model-View-Controller)
+
+Chociaż implementacja MVC nie jest tradycyjna, struktura projektu wyraźnie nawiązuje do tego wzorca:
+
+- **Modele**: `User`, `Wallet`, `Nominal`, `Transaction` - reprezentują dane i logikę biznesową
+- **Kontrolery**: `UserController`, `WalletController`, `TransactionController`, `ExchangeController` - obsługują interakcje i koordynują przepływ danych
+- **Widok**: W tym przypadku, kod HTML generowany w index.php pełni rolę widoku
+
+## 3. Dependency Injection (Wstrzykiwanie zależności)
+
+Kontrolery i inne klasy otrzymują swoje zależności poprzez konstruktory:
+
+```php
+class ExchangeController {
+    public function __construct($exchanger, $nominalModel) {
+        $this->exchanger = $exchanger;
+        $this->nominalModel = $nominalModel;
+    }
+}
+```
+
+Takie podejście zwiększa testowalność kodu i zmniejsza ścisłe powiązania między klasami.
+
+## 4. DAO (Data Access Object)
+
+Klasy modeli (`User`, `Wallet`, `Nominal`, `Transaction`) zawierają metody dostępu do danych, ukrywając szczegóły implementacji bazy danych przed resztą aplikacji:
+
+```php
+public function getWallets($user_id) {
+    try {
+        $stmt = $this->db->prepare("SELECT * FROM wallets WHERE user_id = :user_id");
+        $stmt->bindParam(':user_id', $user_id);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        throw new Exception("Failed to get wallets: " . $e->getMessage());
+    }
+}
+```
+
+## 5. Factory Method (częściowo)
+
+W `ExchangeController` metoda `exchangeAmount` działa częściowo jak Factory Method, tworząc odpowiednie obiekty strategii na podstawie parametru:
+
+```php
+switch ($strategyType) {
+    case 'mostCoins':
+        $strategy = new MostCoinsStrategy();
+        break;
+    case 'preserveLarge':
+        $strategy = new PreserveLargeDenominationsStrategy();
+        break;
+    // ...
+}
+```
+
+## 6. Active Record (elementy)
+
+Klasy modeli łączą w sobie dane i metody operujące na tych danych, co przypomina wzorzec Active Record:
+
+```php
+public function updateNominalCount($wallet_id, $nominal, $type, $count) {
+    // Logika aktualizacji bazy danych
+}
+```
+
+## Co nie zostało zastosowane, a można by rozważyć:
+
+1. **Singleton** - Można rozważyć dla Database, aby zapewnić pojedynczą instancję połączenia do bazy danych
+
+2. **Repository Pattern** - Odseparowanie logiki dostępu do bazy danych od modeli
+
+3. **Observer** - Przydatny do implementacji notyfikacji o zmianach w portfelu
+
+4. **Command** - Do implementacji historii operacji i potencjalnego cofania transakcji
+
+## Podsumowanie
+
+Twój projekt demonstruje dobry poziom zastosowania wzorców projektowych, szczególnie wzorca Strategy, który idealnie pasuje do problemu różnych algorytmów wymiany. Struktura MVC, choć nie jest ścisła, zapewnia odpowiedni podział odpowiedzialności między komponenty systemu. Wstrzykiwanie zależności zwiększa modułowość i testowalność kodu.
+
+Ogólnie projekt ma solidne podstawy architektoniczne, które ułatwiają ewentualne rozszerzenia i modyfikacje w przyszłości.
