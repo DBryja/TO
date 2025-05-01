@@ -3,8 +3,7 @@ require_once __DIR__.'/../models/Wallet.php';
 
 interface WalletInterface {
     public function createWallet($user_id);
-    public function getWallets($user_id);
-    public function getWallet($wallet_id);
+    public function getWallet($user_id);
 }
 
 class BaseWallet implements WalletInterface {
@@ -18,12 +17,8 @@ class BaseWallet implements WalletInterface {
         return $this->walletModel->createWallet($user_id);
     }
     
-    public function getWallets($user_id) {
-        return $this->walletModel->getWallets($user_id);
-    }
-    
-    public function getWallet($wallet_id) {
-        return $this->walletModel->getWallet($wallet_id);
+    public function getWallet($user_id) {
+        return $this->walletModel->getWallet($user_id);
     }
 }
 
@@ -41,12 +36,8 @@ class LimitedWalletDecorator implements WalletInterface {
         return $this->wallet->createWallet($user_id);
     }
     
-    public function getWallets($user_id) {
-        return $this->wallet->getWallets($user_id);
-    }
-    
-    public function getWallet($wallet_id) {
-        return $this->wallet->getWallet($wallet_id);
+    public function getWallet($user_id) {
+        return $this->wallet->getWallet($user_id);
     }
     
     public function checkWithdrawalAllowed($amount) {

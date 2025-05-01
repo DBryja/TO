@@ -14,6 +14,29 @@
         .explanation { background-color: #f9f9f9; padding: 10px; border-left: 4px solid #3498db; margin: 15px 0; }
         .code-example { background-color: #f5f5f5; padding: 10px; font-family: monospace; overflow-x: auto; }
         .algorithm-steps { background-color: #fffde7; padding: 10px; border-left: 4px solid #fbc02d; }
+        .wallet-content {
+        margin: 20px 0;
+        padding: 15px;
+        background-color: #f9f9f9;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+    }
+    
+    .wallet-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    
+    .wallet-content th {
+        background-color: #f2f2f2;
+    }
+    
+    .wallet-content th, .wallet-content td {
+        padding: 8px;
+        text-align: left;
+        border: 1px solid #ddd;
+    }
     </style>
 </head>
 <body>

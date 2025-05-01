@@ -64,7 +64,8 @@ class Database {
             nominal INTEGER NOT NULL,
             type VARCHAR(20) NOT NULL,
             count INTEGER NOT NULL,
-            FOREIGN KEY (wallet_id) REFERENCES wallets(id)
+            FOREIGN KEY (wallet_id) REFERENCES wallets(id),
+            UNIQUE (wallet_id, nominal, type)
         )");
 
         // Create transactions table
@@ -73,7 +74,6 @@ class Database {
             wallet_id INTEGER NOT NULL,
             type VARCHAR(10) NOT NULL,
             amount NUMERIC(10,2) NOT NULL,
-            currency VARCHAR(10) NOT NULL,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (wallet_id) REFERENCES wallets(id)
         )");

@@ -1,4 +1,5 @@
 <?php
+
 class WalletController {
     private $walletModel;
 
@@ -10,11 +11,23 @@ class WalletController {
         return $this->walletModel->createWallet($user_id);
     }
 
-    public function getWallets($user_id) {
-        return $this->walletModel->getWallets($user_id);
+    public function getWallet($user_id) {
+        return $this->walletModel->getWallet($user_id);
     }
 
     public function addNominal($wallet_id, $nominal, $type, $count) {
-        return $this->walletModel->addNominal($wallet_id, $nominal, $type, $count);
+        return $this->walletModel->addNominal($wallet_id, $nominal, $type, $count);;
+    }
+
+    public function getNominalsInWallet($wallet_id) {
+        return $this->walletModel->getNominals($wallet_id);
+    }
+
+    public function getNominals($wallet_id) {
+        return $this->walletModel->getNominals($wallet_id);
+    }
+    
+    public function getTotal($wallet_id) {
+        return $this->walletModel->getTotal($wallet_id);
     }
 }

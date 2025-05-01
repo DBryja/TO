@@ -44,18 +44,43 @@ class Transaction {
 
     public function getBalance($wallet_id) {
         try {
+            // Najpierw debugowanie - sprawdź czy są jakiekolwiek transakcje
+            $checkStmt = $this->db->prepare("SELECT COUNT(*) as count FROM transactions WHERE wallet_id = :wallet_id");
+            $checkStmt->bindParam(':wallet_id', $wallet_id);
+            $checkStmt->execute();
+            $count = $checkStmt->fetchColumn();
+            
+            if ($count == 0) {
+                return 0; // Brak transakcji
+            }
+            
+            // Sprawdź sumy według typów (dla debugowania)
+            $debugStmt = $this->db->prepare("
+                SELECT type, SUM(amount) as total 
+                FROM transactions 
+                WHERE wallet_id = :wallet_id 
+                GROUP BY type
+            ");
+            $debugStmt->bindParam(':wallet_id', $wallet_id);
+            $debugStmt->execute();
+            $typeSums = $debugStmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Właściwe zapytanie o saldo
             $stmt = $this->db->prepare("
                 SELECT 
-                    COALESCE(SUM(CASE WHEN type = 'add' THEN amount ELSE -amount END), 0) as balance,
-                    currency
+                    COALESCE(SUM(CASE 
+                        WHEN type = 'add' THEN amount::numeric 
+                        ELSE -amount::numeric 
+                    END), 0) as balance
                 FROM transactions 
                 WHERE wallet_id = :wallet_id
-                GROUP BY currency
             ");
             $stmt->bindParam(':wallet_id', $wallet_id);
             $stmt->execute();
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $result ? $result : ['balance' => 0, 'currency' => null];
+            
+            // Konwersja na float żeby upewnić się, że mamy liczbę
+            return floatval($result['balance']);
         } catch (PDOException $e) {
             throw new Exception("Failed to get balance: " . $e->getMessage());
         }
