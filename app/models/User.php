@@ -1,5 +1,12 @@
 <?php
-class User {
+
+interface UserRepositoryInterface {
+    public function register($username, $password);
+    public function login($username, $password);
+    public function getUserById($id);
+    public function changePassword($user_id, $current_password, $new_password);
+}
+class User implements UserRepositoryInterface {
     private $db;
 
     public function __construct($db) {

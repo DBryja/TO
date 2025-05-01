@@ -1,8 +1,9 @@
 <?php
 class Database {
+    private static $instance = null;
     private $conn;
 
-    public function __construct() {
+    private function __construct() {
         // PostgreSQL connection details
         $host = getenv('DB_HOST') ?: 'postgres';
         $port = getenv('DB_PORT') ?: '5432';
@@ -22,12 +23,27 @@ class Database {
         }
     }
     
+    // Prevent cloning of the instance
+    private function __clone() {}
+    
+    // Prevent serialization of the instance
+    public function __wakeup() {
+        throw new Exception("Cannot deserialize singleton");
+    }
+    
+    public static function getInstance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+    
     public function getDb() {
         return $this->conn;
     }
 
     private function createTables() {
-        // Create users table
+        // Existing code for creating tables
         $this->conn->exec("CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             username VARCHAR(100) UNIQUE NOT NULL,

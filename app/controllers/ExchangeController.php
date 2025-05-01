@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__.'/../models/ExchangeStrategy.php';
 require_once __DIR__.'/../models/Amount.php';
+require_once __DIR__.'/../factories/StrategyFactory.php';
 
 class ExchangeController {
     private $exchanger;
@@ -15,21 +16,7 @@ class ExchangeController {
         try {
             // Create Amount object
             $amountObj = new Amount($amount);
-            
-            // Set strategy based on user selection
-            switch ($strategyType) {
-                case 'mostCoins':
-                    $strategy = new MostCoinsStrategy();
-                    break;
-                case 'preserveLarge':
-                    $strategy = new PreserveLargeDenominationsStrategy();
-                    break;
-                case 'fewestBills':
-                default:
-                    $strategy = new FewestBillsStrategy();
-                    break;
-            }
-            
+            $strategy = StrategyFactory::createStrategy($strategyType);
             $this->exchanger->setStrategy($strategy);
             
             // Perform exchange

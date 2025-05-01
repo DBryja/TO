@@ -1,10 +1,10 @@
 <?php
-// Enable error reporting for debugging
+// Włącz raportowanie błędów dla debugowania
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Include required files
+// Dołącz wymagane pliki
 require_once __DIR__.'/../app/models/Database.php';
 require_once __DIR__.'/../app/controllers/UserController.php';
 require_once __DIR__.'/../app/controllers/WalletController.php';
@@ -17,44 +17,244 @@ require_once __DIR__.'/../app/models/Nominal.php';
 require_once __DIR__.'/../app/models/Exchanger.php';
 require_once __DIR__.'/../app/models/Amount.php';
 require_once __DIR__.'/../app/models/ExchangeStrategy.php';
+require_once __DIR__.'/../app/decorators/WalletDecorator.php';
+require_once __DIR__.'/../app/factories/StrategyFactory.php';
 
-?> <html><head>
-<title>Wallet Exchange Demonstration</title>
-<style>
-    body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; color: #333; max-width: 1000px; margin: 0 auto; }
-    h1 { color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-    h2 { color: #3498db; margin-top: 30px; }
-    h3 { color: #2980b9; }
-    h4 { color: #16a085; }
-    ul { list-style-type: square; }
-    .success { color: #27ae60; font-weight: bold; }
-    .error { color: #c0392b; font-weight: bold; }
-    .explanation { background-color: #f9f9f9; padding: 10px; border-left: 4px solid #3498db; margin: 15px 0; }
-    .code-example { background-color: #f5f5f5; padding: 10px; font-family: monospace; overflow-x: auto; }
-    .algorithm-steps { background-color: #fffde7; padding: 10px; border-left: 4px solid #fbc02d; }
-</style>
-</head><body>
+// Inicjalizacja połączenia z bazą danych za pomocą wzorca Singleton
+$db = Database::getInstance();
 
-<h1>Smart Wallet Exchange System</h1>
-<div class='explanation'>
-    <p>This system demonstrates a digital wallet implementation with advanced exchange strategies.</p>
-    <p>It allows users to:
-        <ul>
-            <li>Create a wallet</li>
-            <li>Add various denominations (coins and banknotes) to their wallet</li>
-            <li>Exchange amounts using different algorithms tailored to specific needs</li>
-        </ul>
-    </p>
-</div>
+// Inicjalizacja modeli
+$userModel = new User($db);
+$walletModel = new Wallet($db);
+$transactionModel = new Transaction($db);
+$nominalModel = new Nominal($db);
+$exchanger = new Exchanger($nominalModel);
 
-<h2>System Initialization</h2>
-<?php
-// Connect to database
+// Inicjalizacja kontrolerów
+$userController = new UserController($userModel);
+$walletController = new WalletController($walletModel);
+$transactionController = new TransactionController($transactionModel);
+$exchangeController = new ExchangeController($exchanger, $nominalModel);
+
+// Tworzenie użytkownika testowego z wypełnionym portfelem
 try {
-    $db = new Database();
-    echo "<p class='success'>✓ Database connected successfully</p>";
+    $testUsername = "test_user";
+    $testPassword = "test_password";
+
+    // Rejestracja użytkownika testowego
+    $userController->registerUser($testUsername, $testPassword);
+
+    // Logowanie użytkownika testowego
+    $testUser = $userController->loginUser($testUsername, $testPassword);
+    if (!$testUser) {
+        throw new Exception("Nie udało się zalogować użytkownika testowego.");
+    }
+
+    // Tworzenie portfela dla użytkownika testowego
+    $testWalletId = $walletController->createWallet($testUser['id']);
+
+    // Dodawanie nominałów do portfela testowego
+    $walletController->addNominal($testWalletId, 50, 'banknote', 2); // 2x 50 zł
+    $walletController->addNominal($testWalletId, 20, 'banknote', 3); // 3x 20 zł
+    $walletController->addNominal($testWalletId, 10, 'banknote', 5); // 5x 10 zł
+    $walletController->addNominal($testWalletId, 5, 'coin', 10);     // 10x 5 zł
+    $walletController->addNominal($testWalletId, 2, 'coin', 15);     // 15x 2 zł
+    $walletController->addNominal($testWalletId, 1, 'coin', 20);     // 20x 1 zł
+
+    echo "<p class='success'>✓ Użytkownik testowy został utworzony. Login: <strong>$testUsername</strong>, Hasło: <strong>$testPassword</strong></p>";
+    echo "<p class='success'>✓ Portfel testowy został wypełniony przykładowymi nominałami.</p>";
+} catch (Exception $e) {
+    echo "<p class='error'>✗ Nie udało się utworzyć użytkownika testowego: {$e->getMessage()}</p>";
+}
+
+include __DIR__.'/../app/views/header.php';
+
+// Formularz tworzenia portfela
+?>
+<h3>1. Utwórz Nowy Portfel</h3>
+<form method="post" action="<?= $_SERVER['PHP_SELF'] ?>">
+    <input type="text" name="username" placeholder="Nazwa użytkownika" required>
+    <input type="password" name="password" placeholder="Hasło" required><br><br>
+
+    <select name="decorator" required>
+        <option value="none">Brak dekoratora</option>
+        <option value="limitedWallet">Portfel z limitem dziennym</option>
+    </select><br><br>
+
+    <input type="number" name="limit" min="1" placeholder="Limit dzienny (opcjonalne)" disabled id="limitInput"><br><br>
+
+    <input type="submit" name="create_wallet" value="Utwórz portfel">
+</form>
+
+<?php
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_wallet'])) {
+    $username = $_POST['username'];
+    $password = $_POST['password'];
+    $decorator = $_POST['decorator'];
+    $limit = isset($_POST['limit']) ? (int)$_POST['limit'] : null;
+
+    try {
+        // Logowanie użytkownika
+        $user = $userController->loginUser($username, $password);
+        if (!$user) {
+            throw new Exception("Nieprawidłowe dane logowania.");
+        }
+
+        // Tworzenie portfela
+        $walletId = $walletController->createWallet($user['id']);
+        $wallet = new BaseWallet($walletModel);
+
+        // Dodaj dekorator, jeśli wybrano
+        if ($decorator === 'limitedWallet' && $limit) {
+            $wallet = new LimitedWalletDecorator($wallet, $limit);
+        }
+
+        echo "<p class='success'>✓ Portfel został utworzony pomyślnie (ID: $walletId)</p>";
+    } catch (Exception $e) {
+        echo "<p class='error'>✗ Błąd: {$e->getMessage()}</p>";
+    }
+}
+
+// Formularz dodawania nominałów
+?>
+<h3>2. Dodaj Nominały do Portfela</h3>
+<form method="post" action="<?= $_SERVER['PHP_SELF'] ?>">
+    <input type="text" name="username" placeholder="Nazwa użytkownika" required>
+    <input type="password" name="password" placeholder="Hasło" required><br><br>
     
-    // Initialize models and controllers
+    <select name="nominal" required>
+        <option value="">Wybierz nominał</option>
+        <option value="50">50 zł</option>
+        <option value="20">20 zł</option>
+        <option value="10">10 zł</option>
+        <option value="5">5 zł</option>
+        <option value="2">2 zł</option>
+        <option value="1">1 zł</option>
+    </select>
+
+    <select name="type" required>
+        <option value="">Wybierz typ</option>
+        <option value="banknote">Banknot</option>
+        <option value="coin">Moneta</option>
+    </select>
+
+    <input type="number" name="count" min="1" placeholder="Ilość" required>
+    <input type="submit" name="add_nominal" value="Dodaj nominały">
+</form>
+<?php
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_nominal'])) {
+    $username = $_POST['username'];
+    $password = $_POST['password'];
+    $nominal = (int)$_POST['nominal'];
+    $type = $_POST['type'];
+    $count = (int)$_POST['count'];
+
+    try {
+        // Logowanie użytkownika
+        $user = $userController->loginUser($username, $password);
+        if (!$user) {
+            throw new Exception("Nieprawidłowe dane logowania.");
+        }
+
+        // Pobierz portfel użytkownika
+        $wallets = $walletController->getWallets($user['id']);
+        if (empty($wallets)) {
+            throw new Exception("Użytkownik nie posiada portfela.");
+        }
+
+        $walletId = $wallets[0]['id'];
+
+        // Dodaj nominały do portfela
+        $walletController->addNominal($walletId, $nominal, $type, $count);
+
+        echo "<p class='success'>✓ Dodano $count × $nominal zł ($type) do portfela (ID: $walletId)</p>";
+    } catch (Exception $e) {
+        echo "<p class='error'>✗ Błąd: {$e->getMessage()}</p>";
+    }
+}
+?>
+
+<h3>3. Wypłać Kwotę</h3>
+<form method="post" action="<?= $_SERVER['PHP_SELF'] ?>">
+    <input type="text" name="username" placeholder="Nazwa użytkownika" required>
+    <input type="password" name="password" placeholder="Hasło" required><br><br>
+    <input type="number" name="amount" min="1" placeholder="Kwota do wypłaty" required><br><br>
+
+    <select name="strategy" required>
+        <option value="">Wybierz strategię</option>
+        <option value="fewestBills">Najmniej banknotów/monet</option>
+        <option value="mostCoins">Najwięcej monet</option>
+        <option value="preserveLarge">Zachowaj duże nominały</option>
+    </select>
+
+    <input type="submit" name="withdraw" value="Wypłać">
+</form>
+<?php
+// Obsługa formularza wypłaty z dekoratorem
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['withdraw'])) {
+    $username = $_POST['username'];
+    $password = $_POST['password'];
+    $amount = (int)$_POST['amount'];
+    $strategy = $_POST['strategy'];
+
+    try {
+        // Logowanie użytkownika
+        $user = $userController->loginUser($username, $password);
+        if (!$user) {
+            throw new Exception("Nieprawidłowe dane logowania.");
+        }
+
+        // Pobierz portfel użytkownika
+        $wallets = $walletController->getWallets($user['id']);
+        if (empty($wallets)) {
+            throw new Exception("Użytkownik nie posiada portfela.");
+        }
+
+        $walletId = $wallets[0]['id'];
+
+        // Dodaj dekorator, jeśli wybrano
+        $wallet = new BaseWallet($walletModel);
+        if ($decorator === 'limitedWallet') {
+            $wallet = new LimitedWalletDecorator($wallet, 1000); // Limit dzienny: 1000 zł
+        }
+
+        // Ustaw strategię wymiany
+        $exchangeStrategy = StrategyFactory::createStrategy($strategy);
+        $exchanger->setStrategy($exchangeStrategy);
+
+        // Wykonaj wymianę
+        $result = $exchanger->exchange(new Amount($amount), $walletId);
+        echo "<p class='success'>✓ Wypłata zakończona sukcesem: " . json_encode($result) . "</p>";
+    } catch (Exception $e) {
+        echo "<p class='error'>✗ Błąd: {$e->getMessage()}</p>";
+    }
+}
+?>
+
+
+<script>
+    // Włącz/wyłącz pole limitu w zależności od wybranego dekoratora
+    document.querySelector('select[name="decorator"]').addEventListener('change', function () {
+        const limitInput = document.getElementById('limitInput');
+        if (this.value === 'limitedWallet') {
+            limitInput.disabled = false;
+        } else {
+            limitInput.disabled = true;
+            limitInput.value = '';
+        }
+    });
+</script>
+</body>
+</html>
+<?php
+
+/* 
+// Zakomentowana hard-coded funkcjonalność
+try {
+    $db = Database::getInstance();
+    echo "<p class='success'>✓ Połączono z bazą danych pomyślnie</p>";
+    
+    // Inicjalizacja modeli i kontrolerów
     $userModel = new User($db);
     $walletModel = new Wallet($db);
     $transactionModel = new Transaction($db);
@@ -65,193 +265,51 @@ try {
     $walletController = new WalletController($walletModel);
     $transactionController = new TransactionController($transactionModel);
     $exchangeController = new ExchangeController($exchanger, $nominalModel);
-    echo "<p class='success'>✓ System components initialized</p>";
+    echo "<p class='success'>✓ Komponenty systemu zostały zainicjalizowane</p>";
 } catch (Exception $e) {
-    echo "<p class='error'>✗ System initialization failed: {$e->getMessage()}</p>";
+    echo "<p class='error'>✗ Inicjalizacja systemu nie powiodła się: {$e->getMessage()}</p>";
     exit;
 }
 
-// User registration and login
-echo "<h2>User Authentication</h2>";
+// Rejestracja i logowanie użytkownika
+echo "<h2>Uwierzytelnianie użytkownika</h2>";
 $username = "john_doe";
 $password = "securepassword";
 
 try {
     $userController->registerUser($username, $password);
-    echo "<p class='success'>✓ New user registered successfully</p>";
+    echo "<p class='success'>✓ Nowy użytkownik został pomyślnie zarejestrowany</p>";
 } catch (Exception $e) {
-    echo "<p>Note: " . $e->getMessage() . " (Using existing account)</p>";
+    echo "<p>Uwaga: " . $e->getMessage() . " (Użycie istniejącego konta)</p>";
 }
 
-// Login user
+// Logowanie użytkownika
 try {
     $user = $userController->loginUser($username, $password);
     if (!$user) {
-        echo "<p class='error'>✗ Login failed - Invalid credentials</p>";
+        echo "<p class='error'>✗ Logowanie nie powiodło się - nieprawidłowe dane</p>";
         exit;
     }
     
-    echo "<p class='success'>✓ Logged in successfully as $username (ID: {$user['id']})</p>";
+    echo "<p class='success'>✓ Zalogowano pomyślnie jako $username (ID: {$user['id']})</p>";
 } catch (Exception $e) {
-    echo "<p class='error'>✗ Login failed: {$e->getMessage()}</p>";
+    echo "<p class='error'>✗ Logowanie nie powiodło się: {$e->getMessage()}</p>";
     exit;
 }
 
-// Wallet operations
-echo "<h2>Wallet Management System</h2>";
+// Operacje na portfelu
+echo "<h2>Zarządzanie portfelem</h2>";
 
-// Create wallet
+// Tworzenie portfela
 try {
     $wallet_id = $walletController->createWallet($user['id']);
-    echo "<p class='success'>✓ Created wallet (ID: $wallet_id)</p>";
+    echo "<p class='success'>✓ Utworzono portfel (ID: $wallet_id)</p>";
     
-    // Get user's wallets
+    // Pobierz portfele użytkownika
     $wallets = $walletController->getWallets($user['id']);
-    echo "<p class='success'>✓ Retrieved " . count($wallets) . " wallet(s)</p>";
+    echo "<p class='success'>✓ Pobrano " . count($wallets) . " portfel(e)</p>";
 } catch (Exception $e) {
-    echo "<p class='error'>✗ Wallet creation failed: {$e->getMessage()}</p>";
+    echo "<p class='error'>✗ Tworzenie portfela nie powiodło się: {$e->getMessage()}</p>";
     exit;
 }
-
-if (!empty($wallets)) {
-    $walletId = $wallets[0]['id'];
-    
-    echo "<h3>Setting Up Wallet with Denominations</h3>";
-    echo "<div class='explanation'>
-        <p>For our exchange demonstration, we'll populate the wallet with various denominations:</p>
-        <ul>
-            <li>Banknotes: 50 zł, 20 zł, 10 zł</li>
-            <li>Coins:5 zł, 2 zł, 1 zł</li>
-        </ul>
-        <p>This mix of denominations will allow us to test different exchange strategies.</p>
-    </div>";
-    
-    try {
-        // Add denominations to the wallet
-        $exchangeController->addNominalToWallet($walletId, 50, 'banknote', 1);
-        $exchangeController->addNominalToWallet($walletId, 20, 'banknote', 2);
-        $exchangeController->addNominalToWallet($walletId, 10, 'banknote', 3);
-        $exchangeController->addNominalToWallet($walletId, 5, 'coin', 5);
-        $exchangeController->addNominalToWallet($walletId, 2, 'coin', 5);
-        $exchangeController->addNominalToWallet($walletId, 1, 'coin', 10);
-        echo "<p class='success'>✓ Successfully added various denominations to wallet</p>";
-        
-        // Show wallet content
-        $nominals = $exchangeController->getNominalsInWallet($walletId);
-        echo "<h4>Current Wallet Content:</h4>";
-        echo "<ul>";
-        foreach ($nominals as $nominal) {
-            echo "<li>{$nominal['count']}× {$nominal['nominal']} zł ({$nominal['type']})</li>";
-        }
-        echo "</ul>";
-        
-        // Exchange amount using different strategies
-        echo "<h2>Exchange Demonstration - 37 zł</h2>";
-        
-        // Strategy 1: Fewest Bills
-        echo "<h3>Strategy 1: Fewest Bills</h3>";
-        echo "<div class='algorithm-steps'>
-            <p><strong>Algorithm:</strong> Greedy approach starting with the largest denominations first.</p>
-            <p><strong>Use case:</strong> When you want to minimize the number of physical items exchanged.</p>
-        </div>";
-        
-        try {
-            $result = $exchangeController->exchangeAmount($walletId, 37, 'fewestBills');
-            echo "<h4>Result:</h4>";
-            echo "<ul>";
-            $totalCount = 0;
-            foreach ($result as $value => $nominal) {
-                echo "<li>{$nominal['count']}× {$value} zł ({$nominal['type']})</li>";
-                $totalCount += $nominal['count'];
-            }
-            echo "</ul>";
-            echo "<p>Total items: $totalCount</p>";
-        } catch (Exception $e) {
-            echo "<p class='error'>✗ Exchange failed: {$e->getMessage()}</p>";
-        }
-        
-        // Reload wallet
-        $exchangeController->addNominalToWallet($walletId, 50, 'banknote', 1);
-        $exchangeController->addNominalToWallet($walletId, 20, 'banknote', 2);
-        $exchangeController->addNominalToWallet($walletId, 10, 'banknote', 3);
-        $exchangeController->addNominalToWallet($walletId, 5, 'coin', 5);
-        $exchangeController->addNominalToWallet($walletId, 2, 'coin', 5);
-        $exchangeController->addNominalToWallet($walletId, 1, 'coin', 10);
-        
-        // Strategy 2: Most Coins
-        echo "<h3>Strategy 2: Most Coins</h3>";
-        echo "<div class='algorithm-steps'>
-            <p><strong>Algorithm:</strong> Uses the minimum necessary banknotes, then maximizes coin usage.</p>
-            <p><strong>Use case:</strong> When you want to use up small change.</p>
-        </div>";
-        
-        try {
-            $result = $exchangeController->exchangeAmount($walletId, 37, 'mostCoins');
-            echo "<h4>Result:</h4>";
-            echo "<ul>";
-            $coinCount = 0;
-            $banknoteCount = 0;
-            foreach ($result as $value => $nominal) {
-                echo "<li>{$nominal['count']}× {$value} zł ({$nominal['type']})</li>";
-                if ($nominal['type'] == 'coin') {
-                    $coinCount += $nominal['count'];
-                } else {
-                    $banknoteCount += $nominal['count'];
-                }
-            }
-            echo "</ul>";
-            echo "<p>Coins: $coinCount, Banknotes: $banknoteCount</p>";
-        } catch (Exception $e) {
-            echo "<p class='error'>✗ Exchange failed: {$e->getMessage()}</p>";
-        }
-        
-        // Reload wallet
-        $exchangeController->addNominalToWallet($walletId, 50, 'banknote', 1);
-        $exchangeController->addNominalToWallet($walletId, 20, 'banknote', 2);
-        $exchangeController->addNominalToWallet($walletId, 10, 'banknote', 3);
-        $exchangeController->addNominalToWallet($walletId, 5, 'coin', 5);
-        $exchangeController->addNominalToWallet($walletId, 2, 'coin', 5);
-        $exchangeController->addNominalToWallet($walletId, 1, 'coin', 10);
-        
-        // Strategy 3: Preserve Large Denominations
-        echo "<h3>Strategy 3: Preserve Large Denominations</h3>";
-        echo "<div class='algorithm-steps'>
-            <p><strong>Algorithm:</strong> Prioritizes using smaller denominations to keep larger ones available.</p>
-            <p><strong>Use case:</strong> When you want to keep larger bills for future transactions.</p>
-        </div>";
-        
-        try {
-            $result = $exchangeController->exchangeAmount($walletId, 37, 'preserveLarge');
-            echo "<h4>Result:</h4>";
-            echo "<ul>";
-            foreach ($result as $value => $nominal) {
-                echo "<li>{$nominal['count']}× {$value} zł ({$nominal['type']})</li>";
-            }
-            echo "</ul>";
-        } catch (Exception $e) {
-            echo "<p class='error'>✗ Exchange failed: {$e->getMessage()}</p>";
-        }
-        
-        // Show comparison of strategies
-        echo "<h2>Strategy Comparison</h2>";
-        echo "<div class='explanation'>
-            <p>Each exchange strategy has specific advantages depending on the use case.</p>
-        </div>";
-        
-    } catch (Exception $e) {
-        echo "<p class='error'>✗ Wallet operation failed: {$e->getMessage()}</p>";
-    }
-} else {
-    echo "<p class='error'>❌ Wallet not found</p>";
-}
-
-echo "<h2>System Design Notes</h2>";
-echo "<div class='explanation'>
-    <p>This system uses the Strategy design pattern to implement different exchange algorithms.</p>
-</div>";
-
-echo '</body></html>';
-?>
-
-
-<!-- HARD CODED -->
+*/

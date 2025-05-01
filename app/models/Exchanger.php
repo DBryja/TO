@@ -11,6 +11,9 @@ class Exchanger {
     }
     
     public function setStrategy($strategy) {
+        if (is_string($strategy)) {
+            $strategy = StrategyFactory::createStrategy($strategy);
+        }
         $this->strategy = $strategy;
         return $this;
     }
