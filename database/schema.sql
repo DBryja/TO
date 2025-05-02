@@ -3,16 +3,16 @@ PRAGMA foreign_keys = ON;
 
 -- Tabela użytkowników
 CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL
 );
 
 -- Tabela portfeli
 CREATE TABLE IF NOT EXISTS wallets (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY(user_id) REFERENCES users(id)
 );
 
 -- Tabela nominałów
@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS nominaly (
     nominal INTEGER NOT NULL,
     type VARCHAR(20) NOT NULL,
     count INTEGER NOT NULL,
-    FOREIGN KEY (wallet_id) REFERENCES wallets(id)
+    FOREIGN KEY (wallet_id) REFERENCES wallets(id),
+    UNIQUE (wallet_id, nominal, type)
 );
 
 -- Tabela transakcji

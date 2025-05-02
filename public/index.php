@@ -4,15 +4,14 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Dołącz wymagane pliki
 require_once __DIR__.'/../app/models/Database.php';
 require_once __DIR__.'/../app/controllers/UserController.php';
 require_once __DIR__.'/../app/controllers/WalletController.php';
 require_once __DIR__.'/../app/controllers/TransactionController.php';
-require_once __DIR__.'/../app/models/User.php';
-require_once __DIR__.'/../app/models/Wallet.php';
-require_once __DIR__.'/../app/models/Transaction.php';
-require_once __DIR__.'/../app/models/Nominal.php';
+require_once __DIR__.'/../app/Repositories/UserRepository.php';
+require_once __DIR__.'/../app/Repositories/WalletRepository.php';
+require_once __DIR__.'/../app/Repositories/NominalRepository.php';
+require_once __DIR__.'/../app/Repositories/TransactionRepository.php';
 require_once __DIR__.'/../app/models/Exchanger.php';
 require_once __DIR__.'/../app/models/Amount.php';
 require_once __DIR__.'/../app/factories/StrategyFactory.php';
@@ -20,23 +19,24 @@ require_once __DIR__.'/../app/factories/StrategyFactory.php';
 // Inicjalizacja połączenia z bazą danych za pomocą wzorca Singleton
 $db = Database::getInstance();
 
-// Inicjalizacja modeli
-$userModel = new User($db);
-$walletModel = new Wallet($db);
-$transactionModel = new Transaction($db);
+// Inicjalizacja repozytoriów
+$userRepository = new UserRepository($db);
+$walletRepository = new WalletRepository($db);
+$nominalRepository = new NominalRepository($db);
+$transactionRepository = new TransactionRepository($db);
 
 // Inicjalizacja kontrolerów
-$walletController = new WalletController($walletModel);
-$userController = new UserController($userModel);
-$transactionController = new TransactionController($transactionModel, $walletModel);
-$exchanger = new Exchanger($transactionController, $walletController);
+$userController = new UserController($userRepository);
+$walletController = new WalletController($walletRepository, $nominalRepository);
+$transactionController = new TransactionController($transactionRepository, $walletRepository, $nominalRepository);
+$exchanger = new Exchanger();
 
 // Tworzenie użytkownika testowego z wypełnionym portfelem
 try {
     $testUsername = "test";
     $testPassword = "test";
 
-    // Rejestracja użytkownika testowego
+    // Rejestracja użytkownika testowego (jeśli nie istnieje)
     $userController->registerUser($testUsername, $testPassword);
 
     // Logowanie użytkownika testowego
@@ -46,18 +46,18 @@ try {
     }
 
     // Tworzenie portfela dla użytkownika testowego
-    $testWalletId = $walletModel->createWallet($testUser['id']);
-    if (!$testWalletId) {
+    $wallet = $walletController->createWallet($testUser->getId());
+    if (!$wallet) {
         throw new Exception("Nie udało się utworzyć portfela testowego.");
     }
 
     // Dodawanie nominałów do portfela testowego
-    $transactionController->addNominal($testWalletId, 50, 'banknote', 2); // 2x 50 zł
-    $transactionController->addNominal($testWalletId, 20, 'banknote', 3); // 3x 20 zł
-    $transactionController->addNominal($testWalletId, 10, 'banknote', 5); // 5x 10 zł
-    $transactionController->addNominal($testWalletId, 5, 'coin', 10);     // 10x 5 zł
-    $transactionController->addNominal($testWalletId, 2, 'coin', 15);     // 15x 2 zł
-    $transactionController->addNominal($testWalletId, 1, 'coin', 20);     // 20x 1 zł
+    $transactionController->addNominal($wallet->getId(), 50, 'banknote', 2); // 2x 50 zł
+    $transactionController->addNominal($wallet->getId(), 20, 'banknote', 3); // 3x 20 zł
+    $transactionController->addNominal($wallet->getId(), 10, 'banknote', 5); // 5x 10 zł
+    $transactionController->addNominal($wallet->getId(), 5, 'coin', 10);     // 10x 5 zł
+    $transactionController->addNominal($wallet->getId(), 2, 'coin', 15);     // 15x 2 zł
+    $transactionController->addNominal($wallet->getId(), 1, 'coin', 20);     // 20x 1 zł
 
     echo "<p class='success'>✓ Użytkownik testowy został utworzony. Login: <strong>$testUsername</strong>, Hasło: <strong>$testPassword</strong></p>";
     echo "<p class='success'>✓ Portfel testowy został wypełniony przykładowymi nominałami.</p>";
@@ -65,102 +65,87 @@ try {
     echo "<p class='success'>✓ Użytkownik już istnieje: Login: <strong>$testUsername</strong>, Hasło: <strong>$testPassword</strong></p>";
 }
 
-include __DIR__.'/../app/views/header.php';
+include __DIR__.'/../app/components/header.php';
 ?>
 
+<!-- 1. Utwórz Nowy Portfel -->
 <h3>1. Utwórz Nowy Portfel</h3>
 <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>">
     <input type="text" name="username" placeholder="Nazwa użytkownika" required>
     <input type="password" name="password" placeholder="Hasło" required><br><br>
     <input type="submit" name="create_wallet" value="Utwórz portfel">
 </form>
-
 <?php
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_wallet'])) {
     $username = $_POST['username'];
     $password = $_POST['password'];
 
     try {
-        // Sprawdź, czy użytkownik istnieje
+        // Logowanie lub rejestracja użytkownika
         $user = $userController->loginUser($username, $password);
-
         if (!$user) {
-            // Jeśli użytkownik nie istnieje, zarejestruj go
             $userController->registerUser($username, $password);
             $user = $userController->loginUser($username, $password);
-
             if (!$user) {
                 throw new Exception("Nie udało się utworzyć nowego użytkownika.");
             }
-
             echo "<p class='success'>✓ Utworzono nowego użytkownika: <strong>$username</strong></p>";
         }
-
         // Tworzenie portfela
-        $walletId = $walletModel->createWallet($user['id']);
-        echo "<p class='success'>✓ Portfel został utworzony pomyślnie (ID: $walletId)</p>";
+        $wallet = $walletController->createWallet($user->getId());
+        echo "<p class='success'>✓ Portfel został utworzony pomyślnie (ID: {$wallet->getId()})</p>";
     } catch (Exception $e) {
         echo "<p class='error'>✗ Błąd: {$e->getMessage()}</p>";
     }
 }
 ?>
 
+<!-- 2. Pokaż Zawartość Portfela -->
 <h3>2. Pokaż Zawartość Portfela</h3>
 <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>">
     <input type="text" name="username" placeholder="Nazwa użytkownika" required>
     <input type="password" name="password" placeholder="Hasło" required><br><br>
     <input type="submit" name="show_wallet" value="Pokaż portfel">
 </form>
-
 <?php
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['show_wallet'])) {
     $username = $_POST['username'];
     $password = $_POST['password'];
 
     try {
-        // Logowanie użytkownika
         $user = $userController->loginUser($username, $password);
         if (!$user) {
             throw new Exception("Nieprawidłowe dane logowania.");
         }
 
-        // Pobierz portfel użytkownika
-        $wallet = $walletModel->getWallet($user['id']);
+        $wallet = $walletController->getWallet($user->getId());
         if (!$wallet) {
             throw new Exception("Użytkownik nie posiada portfela.");
         }
 
-        $walletId = $wallet['id'];
-
-        // Pobierz nominały i oblicz sumę
-        $nominals = $walletModel->getNominals($walletId);
-        $total = $walletModel->getTotal($walletId);
-
-        // Pobierz saldo transakcji
+        $walletId = $wallet->getId();
+        $nominals = $wallet->getNominals();
+        $total = $walletController->getTotal($walletId);
         $transactionBalance = $transactionController->getBalance($walletId);
 
-        // Wyświetl zawartość portfela
         echo "<div class='wallet-content'>";
         echo "<h4>Zawartość portfela (ID: $walletId)</h4>";
         echo "<p><strong>Łączna suma nominałów:</strong> $total PLN</p>";
         echo "<p><strong>Saldo transakcji:</strong> {$transactionBalance} PLN</p>";
-
         echo "<h5>Spis nominałów:</h5>";
         if (count($nominals) > 0) {
             echo "<table border='1' cellpadding='5'>";
             echo "<tr><th>Nominał</th><th>Typ</th><th>Ilość</th><th>Wartość</th></tr>";
-
             foreach ($nominals as $nominal) {
-                $value = $nominal['nominal'] * $nominal['count'];
-                $type = $nominal['type'] === 'banknote' ? 'Banknot' : 'Moneta';
+                $value = $nominal->getValue() * $nominal->getCount();
+                $type = $nominal->getType() === 'banknote' ? 'Banknot' : 'Moneta';
                 echo "<tr>";
-                echo "<td>{$nominal['nominal']} PLN</td>";
+                echo "<td>{$nominal->getValue()} PLN</td>";
                 echo "<td>$type</td>";
-                echo "<td>{$nominal['count']} szt.</td>";
+                echo "<td>{$nominal->getCount()} szt.</td>";
                 echo "<td>$value PLN</td>";
                 echo "</tr>";
             }
-
             echo "</table>";
         } else {
             echo "<p>Portfel jest pusty.</p>";
@@ -172,6 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['show_wallet'])) {
 }
 ?>
 
+<!-- 3. Dodaj Nominały do Portfela -->
 <h3>3. Dodaj Nominały do Portfela</h3>
 <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>">
     <input type="text" name="username" placeholder="Nazwa użytkownika" required>
@@ -193,7 +179,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['show_wallet'])) {
     <input type="number" name="count" min="1" placeholder="Ilość" required>
     <input type="submit" name="add_nominal" value="Dodaj nominały">
 </form>
-
 <?php
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_nominal'])) {
     $username = $_POST['username'];
@@ -203,22 +188,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_nominal'])) {
     $count = (int)$_POST['count'];
 
     try {
-        // Logowanie użytkownika
         $user = $userController->loginUser($username, $password);
         if (!$user) {
             throw new Exception("Nieprawidłowe dane logowania.");
         }
-
-        // Pobierz portfel użytkownika
-        $walletId = ($walletController->getWallet($user['id']))['id'];
-        if (!$walletId) {
+        $wallet = $walletController->getWallet($user->getId());
+        if (!$wallet) {
             throw new Exception("Użytkownik nie posiada portfela.");
         }
-        echo "<p class='success'>✓ Portfel użytkownika (ID: {$walletId})</p>";
-
-        // Dodaj nominały do portfela i zarejestruj transakcję
+        $walletId = $wallet->getId();
         $transactionController->addNominal($walletId, $nominal, $type, $count);
-
         echo "<p class='success'>✓ Dodano $count × $nominal zł ($type) do portfela (ID: $walletId)</p>";
     } catch (Exception $e) {
         echo "<p class='error'>✗ Błąd: {$e->getMessage()}</p>";
@@ -226,6 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_nominal'])) {
 }
 ?>
 
+<!-- 4. Wypłać Kwotę -->
 <h3>4. Wypłać Kwotę</h3>
 <form method="post" action="<?= $_SERVER['PHP_SELF'] ?>">
     <input type="text" name="username" placeholder="Nazwa użytkownika" required>
@@ -239,7 +219,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_nominal'])) {
     </select>
     <input type="submit" name="withdraw" value="Wypłać">
 </form>
-
 <?php
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['withdraw'])) {
     $username = $_POST['username'];
@@ -248,27 +227,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['withdraw'])) {
     $strategy = $_POST['strategy'];
 
     try {
-        // Logowanie użytkownika
         $user = $userController->loginUser($username, $password);
         if (!$user) {
             throw new Exception("Nieprawidłowe dane logowania.");
         }
 
-        // Pobierz portfel użytkownika
-        $wallet = $walletModel->getWallet($user['id']);
+        $wallet = $walletController->getWallet($user->getId());
         if (!$wallet) {
             throw new Exception("Użytkownik nie posiada portfela.");
         }
-
-        $walletId = $wallet['id'];
-
-        // Ustaw strategię wymiany
+        $walletId = $wallet->getId();
         $exchangeStrategy = StrategyFactory::createStrategy($strategy);
-
-        // Wykonaj wypłatę i zarejestruj transakcję
         $result = $transactionController->withdrawAmount($walletId, $amount, $exchangeStrategy, $exchanger);
 
-        // Wyświetl szczegóły wypłaty
         echo "<div class='success'>";
         echo "<p>✓ Wypłata zakończona sukcesem: $amount PLN</p>";
         echo "<p>Użyta strategia: $strategy</p>";

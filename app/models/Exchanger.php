@@ -1,14 +1,11 @@
 <?php
+// filepath: d:\szkola\TO\app\models\Exchanger.php
 require_once __DIR__.'/ExchangeStrategy.php';
 
 class Exchanger {
     private $strategy;
-    private $transactionController;
-    private $walletController;
 
-    public function __construct($transactionController, $walletController, $strategy = null) {
-        $this->transactionController = $transactionController;
-        $this->walletController = $walletController;
+    public function __construct($strategy = null) {
         $this->strategy = $strategy ?: new FewestBillsStrategy();
     }
 
@@ -25,18 +22,16 @@ class Exchanger {
             throw new Exception("Amount must be an instance of Amount class");
         }
 
-        // Konwertuj nominały do formatu oczekiwanego przez strategię
         $availableNominals = [];
         foreach ($nominals as $nominal) {
-            $availableNominals[$nominal['nominal']] = [
-                'type' => $nominal['type'],
-                'count' => $nominal['count']
+            $availableNominals[$nominal->getValue()] = [
+                'type'  => $nominal->getType(),
+                'count' => $nominal->getCount()
             ];
         }
 
-        // Użyj strategii do obliczenia wymiany
+        // Use the strategy to calculate exchange
         $exchangeResult = $this->strategy->exchange($amount, $availableNominals);
-
         return $exchangeResult;
     }
 }

@@ -15,7 +15,6 @@ RUN mkdir -p /var/www/app /var/www/scripts
 # Copy PHP files
 COPY ./public /var/www/html
 COPY ./app /var/www/app
-COPY ./scripts /var/www/scripts
 
 # Create an entrypoint script to wait for PostgreSQL
 RUN echo '#!/bin/bash\n\
