@@ -1,16 +1,20 @@
 <?php
 class UserController {
-    private $userModel;
-
-    public function __construct($userModel) {
-        $this->userModel = $userModel;
+    private $userRepository;
+    
+    public function __construct($userRepository) {
+        $this->userRepository = $userRepository;
     }
-
+    
     public function registerUser($username, $password) {
-        $this->userModel->register($username, $password);
+        return $this->userRepository->register($username, $password);
     }
-
+    
     public function loginUser($username, $password) {
-        return $this->userModel->login($username, $password);
+        return $this->userRepository->login($username, $password);
+    }
+    
+    public function getUser($id) {
+        return $this->userRepository->getUserById($id);
     }
 }
