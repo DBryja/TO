@@ -16,31 +16,30 @@ Smart Wallet Exchange System to aplikacja napisana w PHP, modelująca złożony 
 TO
 ├── app\
 │   ├── controllers\
+│   │   └── ExchangeController.php
+│   │   └── TransactionController.php
 │   │   ├── UserController.php
 │   │   ├── WalletController.php
-│   │   └── TransactionController.php
 │   ├── factories\
 │   │   └── StrategyFactory.php
 │   ├── models\
-│   │   ├── User.php
-│   │   ├── Wallet.php
-│   │   ├── Nominal.php
-│   │   ├── Transaction.php
 │   │   ├── Amount.php
+│   │   ├── Database.php
 │   │   ├── Exchanger.php
 │   │   └── ExchangeStrategy.php
+│   │   ├── Nominal.php
+│   │   ├── User.php
+│   │   ├── Wallet.php
 │   ├── repositories\
+│   │   ├── NominalRepository.php
 │   │   ├── Repository.php
+│   │   └── TransactionRepository.php
 │   │   ├── UserRepository.php
 │   │   ├── WalletRepository.php
-│   │   ├── NominalRepository.php
-│   │   └── TransactionRepository.php
 │   └── components\
 │       └── header.php
 ├── public\
 │   └── index.php
-├── Dockerfile
-└── docker-compose.yml
 ```
 
 ## Diagram UML
