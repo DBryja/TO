@@ -39,10 +39,6 @@ TO
 │       └── header.php
 ├── public\
 │   └── index.php
-├── database\
-│   └── schema.sql
-├── scripts\
-│   └── create_db.sh
 ├── Dockerfile
 └── docker-compose.yml
 ```
