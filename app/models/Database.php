@@ -4,7 +4,6 @@ class Database {
     private $conn;
 
     private function __construct() {
-        // PostgreSQL connection details
         $host = getenv('DB_HOST') ?: 'postgres';
         $port = getenv('DB_PORT') ?: '5432';
         $dbname = getenv('DB_NAME') ?: 'wallet_app';
@@ -16,17 +15,15 @@ class Database {
             $this->conn = new PDO($dsn, $user, $password);
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             
-            // Create tables if they don't exist
+            // Create tables if they don't exist to simplify testing and development
             $this->createTables();
         } catch (PDOException $e) {
             throw new Exception("Database connection failed: " . $e->getMessage());
         }
     }
     
-    // Prevent cloning of the instance
     private function __clone() {}
     
-    // Prevent serialization of the instance
     public function __wakeup() {
         throw new Exception("Cannot deserialize singleton");
     }
@@ -43,21 +40,18 @@ class Database {
     }
 
     private function createTables() {
-        // Existing code for creating tables
         $this->conn->exec("CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             username VARCHAR(100) UNIQUE NOT NULL,
             password VARCHAR(255) NOT NULL
         )");
 
-        // Create wallets table
         $this->conn->exec("CREATE TABLE IF NOT EXISTS wallets (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )");
 
-        // Create nominaly table
         $this->conn->exec("CREATE TABLE IF NOT EXISTS nominaly (
             id SERIAL PRIMARY KEY,
             wallet_id INTEGER NOT NULL,
@@ -68,7 +62,6 @@ class Database {
             UNIQUE (wallet_id, nominal, type)
         )");
 
-        // Create transactions table
         $this->conn->exec("CREATE TABLE IF NOT EXISTS transactions (
             id SERIAL PRIMARY KEY,
             wallet_id INTEGER NOT NULL,

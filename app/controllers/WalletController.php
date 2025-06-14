@@ -24,7 +24,6 @@ class WalletController {
     }
     
     public function addNominal($walletId, $nominal, $type, $count) {
-        // This returns true on success.
         return $this->walletRepository->addNominal($walletId, $nominal, $type, $count);
     }
     

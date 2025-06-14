@@ -1,5 +1,4 @@
 <?php
-// filepath: d:\szkola\TO\app\models\Exchanger.php
 require_once __DIR__.'/ExchangeStrategy.php';
 
 class Exchanger {
@@ -30,7 +29,6 @@ class Exchanger {
             ];
         }
 
-        // Use the strategy to calculate exchange
         $exchangeResult = $this->strategy->exchange($amount, $availableNominals);
         return $exchangeResult;
     }

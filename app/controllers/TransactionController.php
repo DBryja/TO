@@ -1,16 +1,15 @@
 <?php
-// filepath: d:\szkola\TO\app\controllers\TransactionController.php
 require_once __DIR__ . '/../models/Amount.php';
 
 class TransactionController {
     private $transactionRepository;
     private $walletRepository;
-    private $nominalRepository; // Added new dependency
+    private $nominalRepository;
 
     public function __construct($transactionRepository, $walletRepository, $nominalRepository) {
         $this->transactionRepository = $transactionRepository;
         $this->walletRepository = $walletRepository;
-        $this->nominalRepository  = $nominalRepository; // Store reference
+        $this->nominalRepository  = $nominalRepository;
     }
     
     public function addNominal($wallet_id, $nominal, $type, $count) {
@@ -25,7 +24,6 @@ class TransactionController {
         }
         $exchanger->setStrategy($strategy);
         
-        // Retrieve nominals using the NominalRepository now
         $nominals = $this->nominalRepository->getNominals($wallet_id);
         $exchangeResult = $exchanger->exchange(new Amount($amount), $nominals);
         

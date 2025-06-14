@@ -14,12 +14,10 @@ class ExchangeController {
     
     public function exchangeAmount($wallet_id, $amount, $strategyType = 'fewestBills') {
         try {
-            // Create Amount object
             $amountObj = new Amount($amount);
             $strategy = StrategyFactory::createStrategy($strategyType);
             $this->exchanger->setStrategy($strategy);
             
-            // Perform exchange
             $result = $this->exchanger->exchange($amountObj, $wallet_id);
             
             return $result;
